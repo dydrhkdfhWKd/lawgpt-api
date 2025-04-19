@@ -7,8 +7,6 @@ Original file is located at
     https://colab.research.google.com/drive/1kaVgDa9XuteL2W98NBKTL8Gkm8iZXDFA
 """
 
-!pip install flask
-
 from flask import Flask, request, jsonify
 import xml.etree.ElementTree as ET
 from urllib.request import urlopen
