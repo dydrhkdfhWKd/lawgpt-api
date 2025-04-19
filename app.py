@@ -12,6 +12,7 @@ Original file is located at
 from flask import Flask, request, jsonify
 import xml.etree.ElementTree as ET
 from urllib.request import urlopen
+import os  # 여기에 import 추가
 
 app = Flask(__name__)
 
@@ -43,3 +44,8 @@ def law_search():
                     "content": clause.text
                 })
     return jsonify(results)
+
+# 🚀 여기 추가!
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))  # Railway에서 환경변수로 포트 설정
+    app.run(host='0.0.0.0', port=port)
