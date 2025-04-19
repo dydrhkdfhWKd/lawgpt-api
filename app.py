@@ -10,40 +10,47 @@ Original file is located at
 from flask import Flask, request, jsonify
 import xml.etree.ElementTree as ET
 from urllib.request import urlopen
-import os  # 여기에 import 추가
+import os
 
 app = Flask(__name__)
 
+# ✅ 홈 라우트 (서버 상태 확인용)
 @app.route('/')
 def home():
     return "🔥 LawGPT 서버 실행 중입니다!"
 
+# ✅ 법령 검색 라우트
 @app.route('/law_search', methods=['GET'])
 def law_search():
     query = request.args.get('query')
     if not query:
         return jsonify({"error": "No query provided"}), 400
 
-    url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={query}"
-    response = urlopen(url).read()
-    xtree = ET.fromstring(response)
+    try:
+        url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={query}"
+        response = urlopen(url).read()
+        xtree = ET.fromstring(response)
 
-    results = []
-    for i in xtree[8:]:
-        law_id = i[0].text
-        law_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={law_id}&type=XML"
-        law_response = urlopen(law_url).read()
-        law_tree = ET.fromstring(law_response)
+        results = []
+        for i in xtree[8:]:
+            law_id = i[0].text
+            law_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={law_id}&type=XML"
+            law_response = urlopen(law_url).read()
+            law_tree = ET.fromstring(law_response)
 
-        for clause in law_tree[1:]:
-            if clause.tag == "조문내용" and clause.text:
-                results.append({
-                    "title": law_tree[0][1].text,
-                    "content": clause.text
-                })
-    return jsonify(results)
+            for clause in law_tree[1:]:
+                if clause.tag == "조문내용" and clause.text:
+                    results.append({
+                        "title": law_tree[0][1].text,
+                        "content": clause.text
+                    })
 
-# 🚀 여기 추가!
+        return jsonify(results)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ✅ Railway 호환 서버 실행 코드
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Railway에서 환경변수로 포트 설정
-    app.run(host='0.0.0.0', port=port)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
