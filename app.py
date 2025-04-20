@@ -27,15 +27,15 @@ def law_search():
                         content_type="application/json; charset=utf-8")
 
     try:
-        # ✅ query에서 키워드 분리 (첫 번째: 문서검색, 나머지: 조문 필터링)
+        # ✅ 키워드 분리
         keywords = query.strip().split()
         if not keywords:
             raise ValueError("쿼리에 키워드가 없습니다.")
 
-        primary_keyword = keywords[0]
-        filter_keywords = keywords[1:]
+        # ✅ 모든 키워드를 문서 검색에 활용
+        encoded_query = quote(' '.join(keywords))
 
-        encoded_query = quote(primary_keyword)
+        # 🔍 문서 검색 (문서명에 하나라도 키워드 포함된 문서 모두 조회)
         url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}"
         response = urlopen(url).read()
         xtree = ET.fromstring(response)
@@ -46,6 +46,7 @@ def law_search():
             if not law_id:
                 continue
 
+            # 🧾 조문 상세 조회
             law_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={law_id}&type=XML"
             law_response = urlopen(law_url).read()
             law_tree = ET.fromstring(law_response)
@@ -55,8 +56,8 @@ def law_search():
             for clause in law_tree.findall(".//조문내용"):
                 if clause.text:
                     text = clause.text.strip()
-                    # ✅ 필터 키워드가 모두 포함된 조문만 추출
-                    if all(k in text for k in filter_keywords):
+                    # ✅ 키워드 모두 포함된 조문만 추출 (첫 키워드 포함 여부는 제외)
+                    if all(k in text for k in keywords[1:]):
                         results.append({
                             "title": law_title,
                             "content": text
