@@ -10,6 +10,7 @@ Original file is located at
 from flask import Flask, request, Response
 import xml.etree.ElementTree as ET
 from urllib.request import urlopen
+from urllib.parse import quote
 import json
 
 app = Flask(__name__)
@@ -26,7 +27,8 @@ def law_search():
                         content_type="application/json; charset=utf-8")
 
     try:
-        url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={query}"
+        encoded_query = quote(query)  # 한글 쿼리 인코딩 처리
+        url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}"
         response = urlopen(url).read()
         xtree = ET.fromstring(response)
 
