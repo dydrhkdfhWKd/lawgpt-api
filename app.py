@@ -23,8 +23,8 @@ def law_search(query):
         if not keywords:
             raise ValueError("쿼리에 키워드가 없습니다.")
 
-        first_keyword = keywords[0]
-        remaining_keywords = keywords[1:]
+        first_keyword = keywords[0]  # 문서명에서 찾을 키워드
+        remaining_keywords = keywords[1:]  # 조문 내용에서 찾을 키워드들
 
         encoded_query = quote(first_keyword)
         results = []
@@ -32,7 +32,7 @@ def law_search(query):
         page = 1
 
         while len(results) < max_results:
-            # 한 페이지에 문서 1개씩만 가져오기
+            # 문서 1개씩만 가져오기
             url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}&display=1&page={page}"
             response = urlopen(url).read()
             xtree = ET.fromstring(response)
@@ -52,6 +52,10 @@ def law_search(query):
             detail_tree = ET.fromstring(detail_response)
 
             title = detail_tree.findtext("행정규칙기본정보/행정규칙명", default="제목 없음")
+            if first_keyword not in title:
+                page += 1
+                continue  # 문서명에 첫 키워드 없으면 패스
+
             content_nodes = detail_tree.findall("조문내용")
             combined_content = "\n\n".join([node.text.strip() for node in content_nodes if node.text])
 
@@ -59,13 +63,14 @@ def law_search(query):
                 page += 1
                 continue
 
+            # 조문 내용에 나머지 키워드 모두 포함되어야 함
             if not remaining_keywords or all(k in combined_content for k in remaining_keywords):
                 results.append({
                     "title": title,
                     "content": combined_content
                 })
 
-            page += 1  # 다음 문서로 넘어가기
+            page += 1  # 다음 문서로 이동
 
         if not results:
             return {"message": "해당 키워드를 포함한 조문을 찾을 수 없습니다."}
