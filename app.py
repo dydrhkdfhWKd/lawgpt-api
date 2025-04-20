@@ -68,8 +68,9 @@ def law_search(query):
             "details": str(e)
         }
 
-@app.route('/search')
-def search():
+# 새로운 라우트 (/law_search 추가)
+@app.route('/law_search')
+def law_search_route():
     query = request.args.get('query', '')
     result = law_search(query)
     return jsonify(result)
