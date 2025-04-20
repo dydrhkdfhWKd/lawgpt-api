@@ -10,10 +10,10 @@ Original file is located at
 from flask import Flask, request, Response
 import xml.etree.ElementTree as ET
 from urllib.request import urlopen
-from urllib.parse import quote  # ✅ 한글 인코딩 처리 추가
+from urllib.parse import quote
 import json
 
-app = Flask(__name__)  # ❗ 반드시 있어야 하는 부분
+app = Flask(__name__)
 
 @app.route('/')
 def home():
@@ -27,25 +27,44 @@ def law_search():
                         content_type="application/json; charset=utf-8")
 
     try:
-        # ✅ 한글 쿼리 URL 인코딩
-        encoded_query = quote(query)
+        # ✅ query에서 키워드 분리 (첫 번째: 문서검색, 나머지: 조문 필터링)
+        keywords = query.strip().split()
+        if not keywords:
+            raise ValueError("쿼리에 키워드가 없습니다.")
+
+        primary_keyword = keywords[0]
+        filter_keywords = keywords[1:]
+
+        encoded_query = quote(primary_keyword)
         url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}"
         response = urlopen(url).read()
         xtree = ET.fromstring(response)
 
         results = []
-        for i in xtree[8:]:
-            law_id = i[0].text
+        for item in xtree.findall("법령"):
+            law_id = item.findtext("법령ID")
+            if not law_id:
+                continue
+
             law_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={law_id}&type=XML"
             law_response = urlopen(law_url).read()
             law_tree = ET.fromstring(law_response)
 
-            for clause in law_tree[1:]:
-                if clause.tag == "조문내용" and clause.text:
-                    results.append({
-                        "title": law_tree[0][1].text,
-                        "content": clause.text
-                    })
+            law_title = law_tree.findtext("법령명한글", default="알 수 없음")
+
+            for clause in law_tree.findall(".//조문내용"):
+                if clause.text:
+                    text = clause.text.strip()
+                    # ✅ 필터 키워드가 모두 포함된 조문만 추출
+                    if all(k in text for k in filter_keywords):
+                        results.append({
+                            "title": law_title,
+                            "content": text
+                        })
+
+        if not results:
+            return Response(json.dumps({"message": "해당 키워드를 포함한 조문을 찾을 수 없습니다."}, ensure_ascii=False),
+                            content_type="application/json; charset=utf-8")
 
         return Response(json.dumps(results, ensure_ascii=False),
                         content_type="application/json; charset=utf-8")
