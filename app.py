@@ -7,10 +7,10 @@ Original file is located at
     https://colab.research.google.com/drive/1DEmDEvChjjLAZQs3LqTp0K0m0iGmb9QF
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, Response
 import xml.etree.ElementTree as ET
 from urllib.request import urlopen
-from urllib.error import URLError, HTTPError
+import json
 
 app = Flask(__name__)
 
@@ -22,36 +22,17 @@ def home():
 def law_search():
     query = request.args.get('query')
     if not query:
-        return jsonify({"error": "No query provided"}), 400
+        return Response(json.dumps({"error": "No query provided"}, ensure_ascii=False), content_type="application/json; charset=utf-8")
 
     try:
         url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={query}"
         response = urlopen(url).read()
         xtree = ET.fromstring(response)
 
-        # 페이지 수 확인 (4번째 요소에 전체 건수 있음)
-        try:
-            total_count = int(xtree[3].text)
-        except (IndexError, ValueError):
-            return jsonify({"error": "법령 검색 결과가 유효하지 않습니다."}), 500
-
-        total_pages = (total_count // 20) + 1
-
-        adm_num = []
-
-        # 모든 페이지 순회하면서 일련번호 수집
-        for page_num in range(1, total_pages + 1):
-            page_url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={query}&page={page_num}"
-            page_response = urlopen(page_url).read()
-            page_tree = ET.fromstring(page_response)
-            for i in page_tree[8:]:
-                adm_num.append(i[0].text)
-
         results = []
-
-        # 각 일련번호로 본문 요청
-        for num in adm_num:
-            law_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={num}&type=XML"
+        for i in xtree[8:]:
+            law_id = i[0].text
+            law_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={law_id}&type=XML"
             law_response = urlopen(law_url).read()
             law_tree = ET.fromstring(law_response)
 
@@ -62,17 +43,8 @@ def law_search():
                         "content": clause.text
                     })
 
-        return jsonify(results if results else {"message": "검색 결과가 없습니다."})
+        # 응답에서 ensure_ascii=False 설정 + charset 설정
+        return Response(json.dumps(results, ensure_ascii=False), content_type="application/json; charset=utf-8")
 
-    except HTTPError as e:
-        return jsonify({"error": f"HTTP 오류: {e.code}"}), 500
-    except URLError as e:
-        return jsonify({"error": f"URL 연결 오류: {e.reason}"}), 500
     except Exception as e:
-        return jsonify({"error": f"예기치 못한 오류: {str(e)}"}), 500
-
-# 서버 실행용 (Railway에서 필요)
-if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+        return Response(json.dumps({"error": f"예기치 못한 오류: {str(e)}"}, ensure_ascii=False), content_type="application/json; charset=utf-8")
