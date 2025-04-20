@@ -32,36 +32,34 @@ def law_search():
         if not keywords:
             raise ValueError("쿼리에 키워드가 없습니다.")
 
-        # ✅ 모든 키워드를 문서 검색에 활용
         encoded_query = quote(' '.join(keywords))
 
-        # 🔍 문서 검색 (문서명에 하나라도 키워드 포함된 문서 모두 조회)
+        # 🔍 문서 검색
         url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}"
         response = urlopen(url).read()
         xtree = ET.fromstring(response)
 
         results = []
-        for item in xtree.findall("법령"):
-            law_id = item.findtext("법령ID")
+
+        for item in xtree.findall("admrul"):
+            law_id = item.findtext("행정규칙일련번호")
             if not law_id:
                 continue
 
-            # 🧾 조문 상세 조회
-            law_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={law_id}&type=XML"
-            law_response = urlopen(law_url).read()
-            law_tree = ET.fromstring(law_response)
+            # 🔍 상세 조회
+            detail_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={law_id}&type=XML"
+            detail_response = urlopen(detail_url).read()
+            detail_tree = ET.fromstring(detail_response)
 
-            law_title = law_tree.findtext("법령명한글", default="알 수 없음")
+            # 제목과 전체 조문 내용 가져오기
+            title = detail_tree.findtext("행정규칙기본정보/행정규칙명", default="제목 없음")
+            content = detail_tree.findtext("조문내용", default="")
 
-            for clause in law_tree.findall(".//조문내용"):
-                if clause.text:
-                    text = clause.text.strip()
-                    # ✅ 키워드 모두 포함된 조문만 추출 (첫 키워드 포함 여부는 제외)
-                    if all(k in text for k in keywords[1:]):
-                        results.append({
-                            "title": law_title,
-                            "content": text
-                        })
+            if content and all(k in content for k in keywords[1:]):
+                results.append({
+                    "title": title,
+                    "content": content.strip()
+                })
 
         if not results:
             return Response(json.dumps({"message": "해당 키워드를 포함한 조문을 찾을 수 없습니다."}, ensure_ascii=False),
