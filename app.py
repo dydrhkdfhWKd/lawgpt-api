@@ -27,21 +27,24 @@ def law_search(query):
         remaining_keywords = keywords[1:]
 
         encoded_query = quote(first_keyword)
-
-        # 문서 검색 (첫 키워드 기반)
-        url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}"
-        response = urlopen(url).read()
-        xtree = ET.fromstring(response)
-
         results = []
-        max_results = 10  # 결과 최대 10개로 제한
+        max_results = 10
+        page = 1
 
-        for item in xtree.findall("admrul"):
-            if len(results) >= max_results:
-                break  # 10개 찾았으면 중단
+        while len(results) < max_results:
+            # 한 페이지에 문서 1개씩만 가져오기
+            url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}&display=1&page={page}"
+            response = urlopen(url).read()
+            xtree = ET.fromstring(response)
 
+            admrul_list = xtree.findall("admrul")
+            if not admrul_list:
+                break  # 더 이상 문서 없음
+
+            item = admrul_list[0]
             law_id = item.findtext("행정규칙일련번호")
             if not law_id:
+                page += 1
                 continue
 
             detail_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={law_id}&type=XML"
@@ -49,19 +52,20 @@ def law_search(query):
             detail_tree = ET.fromstring(detail_response)
 
             title = detail_tree.findtext("행정규칙기본정보/행정규칙명", default="제목 없음")
-
             content_nodes = detail_tree.findall("조문내용")
             combined_content = "\n\n".join([node.text.strip() for node in content_nodes if node.text])
 
             if not combined_content:
+                page += 1
                 continue
 
-            # 나머지 키워드가 모두 포함되어야 함
             if not remaining_keywords or all(k in combined_content for k in remaining_keywords):
                 results.append({
                     "title": title,
                     "content": combined_content
                 })
+
+            page += 1  # 다음 문서로 넘어가기
 
         if not results:
             return {"message": "해당 키워드를 포함한 조문을 찾을 수 없습니다."}
