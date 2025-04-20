@@ -10,9 +10,10 @@ Original file is located at
 from flask import Flask, request, Response
 import xml.etree.ElementTree as ET
 from urllib.request import urlopen
+from urllib.parse import quote  # ✅ 한글 인코딩 처리 추가
 import json
 
-app = Flask(__name__)  # ❗ 이 줄이 꼭 있어야 함
+app = Flask(__name__)  # ❗ 반드시 있어야 하는 부분
 
 @app.route('/')
 def home():
@@ -24,8 +25,11 @@ def law_search():
     if not query:
         return Response(json.dumps({"error": "쿼리를 입력해주세요."}, ensure_ascii=False),
                         content_type="application/json; charset=utf-8")
+
     try:
-        url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={query}"
+        # ✅ 한글 쿼리 URL 인코딩
+        encoded_query = quote(query)
+        url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}"
         response = urlopen(url).read()
         xtree = ET.fromstring(response)
 
@@ -43,10 +47,12 @@ def law_search():
                         "content": clause.text
                     })
 
-        return Response(json.dumps(results, ensure_ascii=False), content_type="application/json; charset=utf-8")
+        return Response(json.dumps(results, ensure_ascii=False),
+                        content_type="application/json; charset=utf-8")
 
     except Exception as e:
         return Response(json.dumps({
             "error": "예기치 못한 오류가 발생했습니다.",
             "details": str(e)
-        }, ensure_ascii=False), content_type="application/json; charset=utf-8")
+        }, ensure_ascii=False),
+            content_type="application/json; charset=utf-8")
