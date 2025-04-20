@@ -53,19 +53,26 @@ def law_search():
 
             # 제목과 전체 조문 내용 가져오기
             title = detail_tree.findtext("행정규칙기본정보/행정규칙명", default="제목 없음")
-            content = detail_tree.findtext("조문내용", default="")
 
-            if content and all(k in content for k in keywords[1:]):
+            # ✅ 여러 개의 <조문내용>을 모두 결합
+            content_nodes = detail_tree.findall("조문내용")
+            combined_content = "\n\n".join([node.text.strip() for node in content_nodes if node.text])
+
+            if not combined_content:
+                continue
+
+            # ✅ 키워드가 모두 포함되었는지 확인
+            if all(k in combined_content for k in keywords[1:]):
                 results.append({
                     "title": title,
-                    "content": content.strip()
+                    "content": combined_content
                 })
 
         if not results:
             return Response(json.dumps({"message": "해당 키워드를 포함한 조문을 찾을 수 없습니다."}, ensure_ascii=False),
                             content_type="application/json; charset=utf-8")
 
-        return Response(json.dumps(results, ensure_ascii=False),
+        return Response(json.dumps(results, ensure_ascii=False, indent=2),
                         content_type="application/json; charset=utf-8")
 
     except Exception as e:
