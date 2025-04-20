@@ -7,34 +7,27 @@ Original file is located at
     https://colab.research.google.com/drive/1DEmDEvChjjLAZQs3LqTp0K0m0iGmb9QF
 """
 
-from flask import Flask, request, Response
+from flask import Flask, request, jsonify
 import xml.etree.ElementTree as ET
 from urllib.request import urlopen
 from urllib.parse import quote
-import json
 
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "🔥 LawGPT 서버 실행 중입니다!"
-
-@app.route('/law_search', methods=['GET'])
-def law_search():
-    query = request.args.get('query')
+def law_search(query):
     if not query:
-        return Response(json.dumps({"error": "쿼리를 입력해주세요."}, ensure_ascii=False),
-                        content_type="application/json; charset=utf-8")
+        return {"error": "쿼리를 입력해주세요."}
 
     try:
-        # ✅ 키워드 분리
         keywords = query.strip().split()
         if not keywords:
             raise ValueError("쿼리에 키워드가 없습니다.")
 
-        encoded_query = quote(' '.join(keywords))
+        first_keyword = keywords[0]
+        remaining_keywords = keywords[1:]
 
-        # 🔍 문서 검색
+        encoded_query = quote(first_keyword)
+
         url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}"
         response = urlopen(url).read()
         xtree = ET.fromstring(response)
@@ -46,38 +39,40 @@ def law_search():
             if not law_id:
                 continue
 
-            # 🔍 상세 조회
             detail_url = f"http://www.law.go.kr/DRF/lawService.do?OC=gogohakj1558&target=admrul&ID={law_id}&type=XML"
             detail_response = urlopen(detail_url).read()
             detail_tree = ET.fromstring(detail_response)
 
-            # 제목과 전체 조문 내용 가져오기
             title = detail_tree.findtext("행정규칙기본정보/행정규칙명", default="제목 없음")
 
-            # ✅ 여러 개의 <조문내용>을 모두 결합
             content_nodes = detail_tree.findall("조문내용")
             combined_content = "\n\n".join([node.text.strip() for node in content_nodes if node.text])
 
             if not combined_content:
                 continue
 
-            # ✅ 키워드가 모두 포함되었는지 확인
-            if all(k in combined_content for k in keywords[1:]):
+            if not remaining_keywords or all(k in combined_content for k in remaining_keywords):
                 results.append({
                     "title": title,
                     "content": combined_content
                 })
 
         if not results:
-            return Response(json.dumps({"message": "해당 키워드를 포함한 조문을 찾을 수 없습니다."}, ensure_ascii=False),
-                            content_type="application/json; charset=utf-8")
+            return {"message": "해당 키워드를 포함한 조문을 찾을 수 없습니다."}
 
-        return Response(json.dumps(results, ensure_ascii=False, indent=2),
-                        content_type="application/json; charset=utf-8")
+        return results
 
     except Exception as e:
-        return Response(json.dumps({
+        return {
             "error": "예기치 못한 오류가 발생했습니다.",
             "details": str(e)
-        }, ensure_ascii=False),
-            content_type="application/json; charset=utf-8")
+        }
+
+@app.route('/search')
+def search():
+    query = request.args.get('query', '')
+    result = law_search(query)
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(debug=True)
