@@ -7,18 +7,25 @@ Original file is located at
     https://colab.research.google.com/drive/1DEmDEvChjjLAZQs3LqTp0K0m0iGmb9QF
 """
 
+from flask import Flask, request, Response
+import xml.etree.ElementTree as ET
+from urllib.request import urlopen
+import json
+
+app = Flask(__name__)  # ❗ 이 줄이 꼭 있어야 함
+
+@app.route('/')
+def home():
+    return "🔥 LawGPT 서버 실행 중입니다!"
+
 @app.route('/law_search', methods=['GET'])
 def law_search():
     query = request.args.get('query')
-    clause_filter = request.args.get('clause')  # ex: "제1조"
-
     if not query:
-        return Response(json.dumps({"error": "No query provided"}, ensure_ascii=False),
+        return Response(json.dumps({"error": "쿼리를 입력해주세요."}, ensure_ascii=False),
                         content_type="application/json; charset=utf-8")
-
     try:
-        encoded_query = quote(query)
-        url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}"
+        url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={query}"
         response = urlopen(url).read()
         xtree = ET.fromstring(response)
 
@@ -31,26 +38,15 @@ def law_search():
 
             for clause in law_tree[1:]:
                 if clause.tag == "조문내용" and clause.text:
-                    if clause_filter:
-                        if clause_filter in clause.text:
-                            results.append({
-                                "title": law_tree[0][1].text,
-                                "content": clause.text
-                            })
-                    else:
-                        results.append({
-                            "title": law_tree[0][1].text,
-                            "content": clause.text
-                        })
-
-                # ✅ 응답 결과 너무 클 경우 제한 (예: 50개)
-                if len(results) >= 50:
-                    break
+                    results.append({
+                        "title": law_tree[0][1].text,
+                        "content": clause.text
+                    })
 
         return Response(json.dumps(results, ensure_ascii=False), content_type="application/json; charset=utf-8")
 
     except Exception as e:
-        return Response(json.dumps(
-            {"error": "예기치 못한 오류", "details": repr(e)},
-            ensure_ascii=False
-        ), content_type="application/json; charset=utf-8")
+        return Response(json.dumps({
+            "error": "예기치 못한 오류가 발생했습니다.",
+            "details": str(e)
+        }, ensure_ascii=False), content_type="application/json; charset=utf-8")
