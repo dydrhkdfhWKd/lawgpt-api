@@ -22,7 +22,8 @@ def home():
 def law_search():
     query = request.args.get('query')
     if not query:
-        return Response(json.dumps({"error": "No query provided"}, ensure_ascii=False), content_type="application/json; charset=utf-8")
+        return Response(json.dumps({"error": "No query provided"}, ensure_ascii=False),
+                        content_type="application/json; charset=utf-8")
 
     try:
         url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={query}"
@@ -43,8 +44,10 @@ def law_search():
                         "content": clause.text
                     })
 
-        # 응답에서 ensure_ascii=False 설정 + charset 설정
         return Response(json.dumps(results, ensure_ascii=False), content_type="application/json; charset=utf-8")
 
     except Exception as e:
-        return Response(json.dumps({"error": f"예기치 못한 오류: {str(e)}"}, ensure_ascii=False), content_type="application/json; charset=utf-8")
+        return Response(json.dumps(
+            {"error": "예기치 못한 오류", "details": repr(e)},
+            ensure_ascii=False
+        ), content_type="application/json; charset=utf-8")
