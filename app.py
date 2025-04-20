@@ -28,13 +28,18 @@ def law_search(query):
 
         encoded_query = quote(first_keyword)
 
+        # 문서 검색 (첫 키워드 기반)
         url = f"http://www.law.go.kr/DRF/lawSearch.do?target=admrul&OC=gogohakj1558&type=XML&query={encoded_query}"
         response = urlopen(url).read()
         xtree = ET.fromstring(response)
 
         results = []
+        max_results = 10  # 결과 최대 10개로 제한
 
         for item in xtree.findall("admrul"):
+            if len(results) >= max_results:
+                break  # 10개 찾았으면 중단
+
             law_id = item.findtext("행정규칙일련번호")
             if not law_id:
                 continue
@@ -51,6 +56,7 @@ def law_search(query):
             if not combined_content:
                 continue
 
+            # 나머지 키워드가 모두 포함되어야 함
             if not remaining_keywords or all(k in combined_content for k in remaining_keywords):
                 results.append({
                     "title": title,
@@ -68,7 +74,6 @@ def law_search(query):
             "details": str(e)
         }
 
-# 새로운 라우트 (/law_search 추가)
 @app.route('/law_search')
 def law_search_route():
     query = request.args.get('query', '')
